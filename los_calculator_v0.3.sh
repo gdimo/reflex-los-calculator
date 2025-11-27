@@ -58,8 +58,8 @@ if ! [[ "$obs_angle" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
     exit 1
 fi
 
-theta_min=$(echo "$obs_angle - 1" | bc -l)
-theta_max=$(echo "$obs_angle + 1" | bc -l)
+theta_min=$(echo "$obs_angle - 0.5" | bc -l)
+theta_max=$(echo "$obs_angle + 0.5" | bc -l)
 
 pi="3.141592653589793"
 COSMIN=$(echo "c($theta_min*$pi/180)" | bc -l)
