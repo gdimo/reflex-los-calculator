@@ -1,0 +1,29 @@
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# macOS folder attributes
+Icon?
+._*
+
+# Shell and temp files
+*.log
+*.tmp
+*.bak
+
+# RefleX large outputs
+outputs/
+logs/
+*.txt~  # temp backups
+
+# RefleX executable (user-provided)
+reflex3
+reflex
+RefleX
+reflex_v3
+reflex-3
+
+# Python cache
+__pycache__/
+*.pyc
