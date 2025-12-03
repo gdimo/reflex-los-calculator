@@ -50,7 +50,7 @@ A short description of how to properly use the script. There are three modes; _i
 - Simply execute  
 `python los_calculator.py`  
 and follow the instructions in the screen
-- You will be prompted to select the model, input the angle, and input the torus NH as well as whether you want to keep the output in separate files.
+- You will be prompted to select the model, and its parameters as well as whether you want to keep the output in separate files.
 - You should see:  
 ```
 Which model do you want to use?
@@ -59,6 +59,9 @@ Which model do you want to use?
 Enter 1 or 2:
 Enter observing angle:
 Enter torus NH (log10):
+.
+.
+.
 Do you want to keep the output files? (1=yes, 0=no)
 ```
 
@@ -69,6 +72,7 @@ python3 los_calculator.py \
     --model rxtopo \
     --angle 79 \
     --nh 24.4 \
+    --covfac 0.5 \
     --keep 1
 ```
 - This way the procedure can be scripted for multiple sources.
