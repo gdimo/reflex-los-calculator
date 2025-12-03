@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
+## [0.4] – 2025-11-26
+### Added
+- Complete Python version of the LOS NH calculator (`los_calculator.py`)
+- Modular function-based structure for angle math, histogram parsing, summary writing, and RefleX execution
+- Hybrid input system: supports both interactive prompts and argument-based execution
+- Full command-line interface using argparse (`--model`, `--angle`, `--nh`, `--keep`, `--delta`)
+- Fully automatic mode for batch scripting without user interaction
+- Output directory, summary file, and histogram handling reproduced exactly from the Bash script
+### Changed
+- Internal structure reorganized for extensibility (future geometric parameters, batch tools, GUI)
+### Notes
+- Python version mirrors the Bash version exactly but is more robust, maintainable, and scriptable.
+
+
 ## [0.3.1] – 2025-11-27
 ### Changed
 - Rewrote angle logic to use ±0.5° boundaries 

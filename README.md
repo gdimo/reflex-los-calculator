@@ -38,3 +38,44 @@ clean interface suited for scientific analysis pipelines.
 
 Example expected line in your `.par` file:
 
+---
+
+
+## How to
+
+A short description of how to properly use the script. There are three modes; _interactive_, _automatic_ and _hybrid_.
+
+### Interactive mode
+
+- Simply execute  
+`python los_calculator.py`  
+and follow the instructions in the screen
+- You will be prompted to select the model, input the angle, and input the torus NH as well as whether you want to keep the output in separate files.
+- You should see:  
+```
+Which model do you want to use?
+  [1] RXToPo
+  [2] RXagn1
+Enter 1 or 2:
+Enter observing angle:
+Enter torus NH (log10):
+Do you want to keep the output files? (1=yes, 0=no)
+```
+
+### Automatic mode
+- Execute the script with command-line arguments (an example):
+```
+python3 los_calculator.py \
+    --model rxtopo \
+    --angle 79 \
+    --nh 24.4 \
+    --keep 1
+```
+- This way the procedure can be scripted for multiple sources.
+
+### Hybrid mode
+
+- It is a combination of the two modes. You can automate some of the parameters and you will be promted to supply the rest.
+- For example:
+`python3 los_calculator.py --model rxagn1 --angle 75
+`  
