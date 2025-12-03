@@ -1,86 +1,245 @@
 #!/usr/bin/env python3
-import os
-import subprocess
-import math
-from datetime import datetime
-import shutil
+"""
+RefleX Line-of-Sight NH Utility (Python version)
 
-# ---------------------------------------------------------------------
-# Utility functions
-# ---------------------------------------------------------------------
+- Supports interactive mode (no arguments)
+- Supports argument-based mode for scripting / batches
+- Mirrors functionality of the original Bash script
+"""
+
+import os
+import math
+import shutil
+import subprocess
+from datetime import datetime
+import argparse
+
+
+# -----------------------------------------------------------
+# UI + Input Helpers
+# -----------------------------------------------------------
 
 def clear_screen():
-    os.system('clear' if os.name == 'posix' else 'cls')
+    os.system("clear" if os.name == "posix" else "cls")
 
 
-def get_float(prompt):
+def ask_float(prompt):
     """Prompt user for a numeric (float) input."""
     while True:
-        val = input(prompt)
+        val = input(prompt).strip()
         try:
             return float(val)
         except ValueError:
             print("❌ ERROR: Value must be numeric.")
 
 
-def get_choice(prompt, options):
+def ask_choice(prompt, choices):
     """Prompt user to enter one of the allowed string options."""
     while True:
         val = input(prompt).strip()
-        if val in options:
+        if val in choices:
             return val
-        print(f"❌ ERROR: Enter one of: {', '.join(options)}")
+        print(f"❌ ERROR: Enter one of: {', '.join(choices)}")
 
 
-# ---------------------------------------------------------------------
-# Banner + Requirements
-# ---------------------------------------------------------------------
-
-def welcome():
-    clear_screen()
+def print_banner():
     print("==============================================================")
     print("        Welcome to the RefleX Line-of-Sight NH Utility")
     print("==============================================================")
-    print("\nThis script runs LOS NH simulations using RefleX (v3).\n")
+    print("")
+    print("This script runs LOS NH simulations using RefleX (v3).")
+    print("")
     print("Requirements:")
     print("  • RefleX v3 executable named 'reflex3' in the same directory")
     print("  • Parameter files must contain: %COSMIN, %COSMAX, %ANGLE, %TORUSNH")
     print("  • COLDENS must appear as:  COLDENS 1e%TORUSNH")
-    print("\n--------------------------------------------------------------")
+    print("")
+    print("--------------------------------------------------------------")
 
 
-# ---------------------------------------------------------------------
-# Main logic
-# ---------------------------------------------------------------------
+# -----------------------------------------------------------
+# Math + Physics Helpers
+# -----------------------------------------------------------
+
+def compute_angle_cosines(obs_angle, delta=0.5):
+    """
+    Given observing angle (deg) and half-width delta (deg),
+    return (theta_min, theta_max, COSMIN, COSMAX).
+    """
+    theta_min = obs_angle - delta
+    theta_max = obs_angle + delta
+    cosmin = math.cos(math.radians(theta_min))
+    cosmax = math.cos(math.radians(theta_max))
+    return theta_min, theta_max, cosmin, cosmax
+
+
+# -----------------------------------------------------------
+# Histogram Analysis
+# -----------------------------------------------------------
+
+def analyze_histogram(histogram_path):
+    """
+    Analyze NH histogram file with format:
+      NH_low   NH_high   count
+    Return (peak_mid, peak_log10) or (None, 'undefined') if empty.
+    """
+    max_count = -1.0
+    peak_mid = None
+
+    with open(histogram_path) as f:
+        for line in f:
+            parts = line.split()
+            if len(parts) != 3:
+                continue
+            try:
+                nh1, nh2, count = map(float, parts)
+            except ValueError:
+                continue
+            if count > max_count:
+                max_count = count
+                peak_mid = (nh1 + nh2) / 2.0
+
+    if max_count <= 0 or peak_mid is None:
+        return None, "undefined"
+
+    peak_log = math.log10(peak_mid)
+    return peak_mid, f"{peak_log:.4f}"
+
+
+# -----------------------------------------------------------
+# RefleX Execution
+# -----------------------------------------------------------
+
+def run_reflex(model_file, cosmin, cosmax, angle_str, torus_nh, log_file):
+    """
+    Execute RefleX with the given parameters and log stdout/stderr.
+    """
+    cmd = [
+        "./reflex3",
+        f"%COSMIN={cosmin}",
+        f"%COSMAX={cosmax}",
+        f"%ANGLE={angle_str}",
+        f"%TORUSNH={torus_nh}",
+        model_file,
+    ]
+
+    with open(log_file, "w") as log:
+        log.write("=== RefleX run started ===\n")
+        log.write("Command:\n")
+        log.write(" ".join(cmd) + "\n\n")
+
+        subprocess.run(cmd, stdout=log, stderr=log, check=False)
+
+        log.write("\n=== RefleX run finished ===\n")
+
+
+# -----------------------------------------------------------
+# Summary and File Handling
+# -----------------------------------------------------------
+
+def write_summary(output_dir, model_name, model_file,
+                  obs_angle, torus_nh,
+                  theta_min, theta_max, cosmin, cosmax,
+                  peak_log, log_file):
+    """
+    Write a short summary file (output.txt) in the output directory.
+    """
+    summary_file = os.path.join(output_dir, "output.txt")
+    with open(summary_file, "w") as f:
+        f.write("RefleX LOS NH Simulation Summary\n")
+        f.write("================================\n\n")
+        f.write(f"Model used: {model_name}\n")
+        f.write(f"Parameter file: {model_file}\n\n")
+        f.write(f"Observing angle: {obs_angle} degrees\n")
+        f.write(f"Torus equatorial NH (log10): {torus_nh}\n\n")
+        f.write("DIR_Z boundaries:\n")
+        f.write(f"   theta_min = {theta_min}°  -> cos = {cosmin}\n")
+        f.write(f"   theta_max = {theta_max}°  -> cos = {cosmax}\n\n")
+        f.write(f"LOS NH (log10): {peak_log}\n\n")
+        f.write("Output directory:\n")
+        f.write(f"   {output_dir}\n\n")
+        f.write("Log file:\n")
+        f.write(f"   {log_file}\n\n")
+        f.write("----------------------------------------------\n")
+        f.write("End of summary\n")
+
+    print(f"Summary saved in {summary_file}")
+
+
+# -----------------------------------------------------------
+# Argument Parsing
+# -----------------------------------------------------------
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(
+        description="RefleX LOS NH utility (interactive + CLI mode)"
+    )
+    parser.add_argument(
+        "--model",
+        choices=["rxtopo", "rxagn1"],
+        help="Model to use: rxtopo or rxagn1"
+    )
+    parser.add_argument(
+        "--angle",
+        type=float,
+        help="Observing angle in degrees (e.g. 79)"
+    )
+    parser.add_argument(
+        "--nh",
+        type=float,
+        help="Torus equatorial NH (log10, e.g. 24.4)"
+    )
+    parser.add_argument(
+        "--keep",
+        type=int,
+        choices=[0, 1],
+        help="Keep output files? 1 = yes, 0 = no"
+    )
+    parser.add_argument(
+        "--delta",
+        type=float,
+        default=0.5,
+        help="Half-width of angle bin in degrees (default: 0.5)"
+    )
+    return parser.parse_args()
+
+
+# -----------------------------------------------------------
+# Main Orchestration
+# -----------------------------------------------------------
 
 def main():
+    clear_screen()
+    print_banner()
 
-    welcome()
+    args = parse_arguments()
 
-    # ------------------------------------------
-    # Check for reflex3 executable
-    # ------------------------------------------
-    if not os.path.isfile("./reflex3") or not os.access("./reflex3", os.X_OK):
+    # --- Check for executable ---
+    if not (os.path.isfile("./reflex3") and os.access("./reflex3", os.X_OK)):
         print("❌ ERROR: Missing executable './reflex3'")
         return
 
     print("RefleX executable found.\n")
 
-    # ------------------------------------------
-    # Model Selection
-    # ------------------------------------------
-    print("Which model do you want to use?")
-    print("  [1] RXToPo  (rxtopo_los.par)")
-    print("  [2] RXagn1  (rxagn1_los.par)")
-
-    choice = get_choice("Enter 1 or 2: ", ["1", "2"])
-
-    if choice == "1":
-        model_file = "rxtopo_los.par"
-        model_name = "RXToPo"
+    # --- Model selection ---
+    if args.model is None:
+        print("Which model do you want to use?")
+        print("  [1] RXToPo  (rxtopo_los.par)")
+        print("  [2] RXagn1  (rxagn1_los.par)")
+        choice = ask_choice("Enter 1 or 2: ", ["1", "2"])
+        if choice == "1":
+            model_file = "rxtopo_los.par"
+            model_name = "RXToPo"
+        else:
+            model_file = "rxagn1_los.par"
+            model_name = "RXagn1"
     else:
-        model_file = "rxagn1_los.par"
-        model_name = "RXagn1"
+        if args.model == "rxtopo":
+            model_file = "rxtopo_los.par"
+            model_name = "RXToPo"
+        else:
+            model_file = "rxagn1_los.par"
+            model_name = "RXagn1"
 
     print(f"\nSelected model: {model_name}")
 
@@ -88,146 +247,128 @@ def main():
         print(f"❌ ERROR: Parameter file not found: {model_file}")
         return
 
-    # ------------------------------------------
-    # Observing angle
-    # ------------------------------------------
-    obs_angle = get_float("\nEnter observing angle in degrees (e.g. 79): ")
+    # --- Observing angle ---
+    if args.angle is None:
+        obs_angle = ask_float("\nEnter observing angle in degrees (e.g. 79): ")
+    else:
+        obs_angle = float(args.angle)
 
-    theta_min = obs_angle - 0.5
-    theta_max = obs_angle + 0.5
+    # Angle string for passing to RefleX and file names
+    if float(obs_angle).is_integer():
+        angle_str = str(int(obs_angle))
+    else:
+        angle_str = str(obs_angle)
 
-    COSMIN = math.cos(math.radians(theta_min))
-    COSMAX = math.cos(math.radians(theta_max))
+    theta_min, theta_max, cosmin, cosmax = compute_angle_cosines(
+        obs_angle,
+        delta=args.delta
+    )
 
     print("\nComputed DIR_Z range:")
-    print(f"   theta_min = {theta_min}° → cos = {COSMIN}")
-    print(f"   theta_max = {theta_max}° → cos = {COSMAX}")
+    print(f"   theta_min = {theta_min}° → cos = {cosmin}")
+    print(f"   theta_max = {theta_max}° → cos = {cosmax}")
 
-    # ------------------------------------------
-    # Torus NH (log10)
-    # ------------------------------------------
-    torus_nh = get_float("\nEnter Torus equatorial NH (log10, e.g. 24.4): ")
+    # --- Torus NH (log10) ---
+    if args.nh is None:
+        torus_nh = ask_float("\nEnter Torus equatorial NH (log10, e.g. 24.4): ")
+    else:
+        torus_nh = float(args.nh)
+
     print(f"Using COLDENS = 1e{torus_nh}\n")
 
-    # ------------------------------------------
-    # Output directory
-    # ------------------------------------------
+    # --- Prepare output directory ---
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = f"outputs/{model_name}_{obs_angle}deg_{timestamp}"
+    output_dir = os.path.join(
+        "outputs",
+        f"{model_name}_{angle_str}deg_{timestamp}"
+    )
     os.makedirs(output_dir, exist_ok=True)
 
-    log_file = f"{output_dir}/run_{model_name}_{obs_angle}deg_{timestamp}.log"
+    log_file = os.path.join(
+        output_dir,
+        f"run_{model_name}_{angle_str}deg_{timestamp}.log"
+    )
 
     print(f"Output directory: {output_dir}")
     print(f"Log file:         {log_file}\n")
 
-    input("Press ENTER to start simulation, or Ctrl+C to cancel.")
-    print("\nRunning RefleX...\n")
+    # Only pause if running interactively (no relevant args)
+    if args.model is None or args.angle is None or args.nh is None or args.keep is None:
+        input("Press ENTER to start simulation, or Ctrl+C to cancel.")
+        print("")
 
-    # ------------------------------------------
-    # Build RefleX command
-    # ------------------------------------------
-    reflex_cmd = [
-        "./reflex3",
-        f"%COSMIN={COSMIN}",
-        f"%COSMAX={COSMAX}",
-        f"%ANGLE={obs_angle}",
-        f"%TORUSNH={torus_nh}",
-        model_file
-    ]
+    print("Running RefleX...\n")
 
-    # ------------------------------------------
-    # Run with full logging
-    # ------------------------------------------
-    with open(log_file, "w") as logf:
-        logf.write("=== RefleX run started ===\n")
-        logf.write("Command:\n")
-        logf.write(" ".join(reflex_cmd) + "\n\n")
+    # --- Run RefleX ---
+    run_reflex(
+        model_file=model_file,
+        cosmin=cosmin,
+        cosmax=cosmax,
+        angle_str=angle_str,
+        torus_nh=torus_nh,
+        log_file=log_file,
+    )
 
-        try:
-            subprocess.run(reflex_cmd, stdout=logf, stderr=logf, check=False)
-        except Exception as e:
-            logf.write(f"\nERROR running RefleX: {e}\n")
+    # --- Locate NH output ---
+    outfile_name = f"NHdeg{angle_str}.txt"
+    outfile_path = outfile_name
+    moved_outfile = os.path.join(output_dir, outfile_name)
 
-        logf.write("\n=== RefleX run finished ===\n")
-
-    # ------------------------------------------
-    # Locate output
-    # ------------------------------------------
-    outfile = f"NHdeg{obs_angle}.txt"
-    moved_outfile = f"{output_dir}/{outfile}"
-
-    if not os.path.isfile(outfile):
+    if not os.path.isfile(outfile_path):
         print("⚠️ Simulation finished but no NH output found.")
         print(f"Check log: {log_file}")
         return
 
-    shutil.move(outfile, moved_outfile)
-    print(f"Simulation successful.\nNH file saved to: {moved_outfile}")
+    shutil.move(outfile_path, moved_outfile)
+    print(f"Simulation successful.")
+    print(f"NH file saved to: {moved_outfile}")
 
-    # ------------------------------------------
-    # Analyze histogram
-    # ------------------------------------------
+    # --- Analyze histogram ---
     print("\nAnalyzing histogram...")
 
-    peak_mid = None
-    max_count = -1
+    peak_mid, peak_log = analyze_histogram(moved_outfile)
 
-    with open(moved_outfile) as f:
-        for line in f:
-            parts = line.split()
-            if len(parts) != 3:
-                continue
-            nh1, nh2, count = map(float, parts)
-            if count > max_count:
-                max_count = count
-                peak_mid = (nh1 + nh2) / 2.0
-
-    if max_count <= 0:
+    if peak_mid is None:
         print("⚠️ Histogram has no non-zero bins.")
-        peak_log = "undefined"
     else:
-        peak_log = f"{math.log10(peak_mid):.4f}"
-        print(f"Peak NH midpoint = {peak_mid}  (debug)")
+        print(f"Peak NH midpoint = {peak_mid}  (Ignore/Debug use only)")
         print(f"Peak log10(NH)   = {peak_log}")
 
-    # ------------------------------------------
-    # Ask user whether to keep output directory
-    # ------------------------------------------
-    keep = get_choice("\nDo you want to keep the output files? (1 = yes, 0 = no): ", ["1", "0"])
-
-    if keep == "1":
-        summary_file = f"{output_dir}/output.txt"
-        with open(summary_file, "w") as f:
-            f.write("RefleX LOS NH Simulation Summary\n")
-            f.write("================================\n\n")
-            f.write(f"Model used: {model_name}\n")
-            f.write(f"Parameter file: {model_file}\n\n")
-            f.write(f"Observing angle: {obs_angle} degrees\n")
-            f.write(f"Torus equatorial NH (log10): {torus_nh}\n\n")
-            f.write("DIR_Z boundaries:\n")
-            f.write(f"   theta_min = {theta_min}° -> cos = {COSMIN}\n")
-            f.write(f"   theta_max = {theta_max}° -> cos = {COSMAX}\n\n")
-            f.write(f"LOS NH (log10): {peak_log}\n\n")
-            f.write("Output directory:\n")
-            f.write(f"   {output_dir}\n\n")
-            f.write("Log file:\n")
-            f.write(f"   {log_file}\n\n")
-            f.write("----------------------------------------------\n")
-            f.write("End of summary\n")
-
-        print(f"Summary saved in {summary_file}")
-
+    # --- Keep or delete output directory ---
+    if args.keep is None:
+        keep_str = ask_choice(
+            "\nDo you want to keep the output files? (1 = yes, 0 = no): ",
+            ["1", "0"]
+        )
+        keep = int(keep_str)
     else:
-        print("Deleting all output files...")
-        shutil.rmtree(output_dir)
+        keep = int(args.keep)
+
+    if keep == 1:
+        write_summary(
+            output_dir=output_dir,
+            model_name=model_name,
+            model_file=model_file,
+            obs_angle=obs_angle,
+            torus_nh=torus_nh,
+            theta_min=theta_min,
+            theta_max=theta_max,
+            cosmin=cosmin,
+            cosmax=cosmax,
+            peak_log=peak_log,
+            log_file=log_file,
+        )
+    else:
+        print("\nDeleting all output files...")
+        if os.path.exists(output_dir):
+            shutil.rmtree(output_dir)
         print("Output directory deleted. LOS NH was NOT saved.")
 
     print("\n==============================================================")
     print("Done.")
 
 
-# ---------------------------------------------------------------------
+# -----------------------------------------------------------
 
 if __name__ == "__main__":
     main()
