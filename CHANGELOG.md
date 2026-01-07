@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
+## [0.6] - 2026-01-007
+### Added
+- Cone support
+
 ## [0.5] – 2025-11-27
 ### Added
 - Support for torus covering factor (CF) as a new input parameter (interactive + CLI via `--covfac`)
