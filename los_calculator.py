@@ -128,7 +128,7 @@ def compute_hollow_cone_properties(torus_cf, r_sub, nh_cone_log):
     nh_linear = 10 ** nh_cone_log  # cm^-2
     dens_hcone = nh_linear / real_hyp  # cm^-3
 
-    return bot_h, top_h, rbout, rtout, rbin, rtin, dens_hcone
+    return bot_h, top_h, rbout, rtout, rbin, rtin, dens_hcone, theta_in, theta_out
 
 # -----------------------------------------------------------
 # Histogram Analysis
@@ -195,6 +195,10 @@ def run_reflex(model_file, cosmin, cosmax, angle_str, torus_nh,
         log.write("=== RefleX run started ===\n")
         log.write("Command:\n")
         log.write(" ".join(cmd) + "\n\n")
+        log.write("\nHollow cone angular geometry:\n")
+        log.write(f"   theta_in  = {hcone_vals['theta_in']:.4f} deg\n")
+        log.write(f"   theta_out = {hcone_vals['theta_out']:.4f} deg\n\n")
+
 
         subprocess.run(cmd, stdout=log, stderr=log, check=False)
 
@@ -234,6 +238,8 @@ def write_summary(output_dir, model_name, model_file,
         f.write(f"HCONE BOT/TOP (cm): {hcone_vals['bot']:.4e} / {hcone_vals['top']:.4e}\n")
         f.write(f"HCONE RBout/RTout (cm): {hcone_vals['rbout']:.4e} / {hcone_vals['rtout']:.4e}\n")
         f.write(f"HCONE RBin/RTin (cm): {hcone_vals['rbin']:.4e} / {hcone_vals['rtin']:.4e}\n\n")
+        f.write(f"Hollow cone inner angle (deg): {hcone_vals['theta_in']:.2f}\n")
+        f.write(f"Hollow cone outer angle (deg): {hcone_vals['theta_out']:.2f}\n")
         f.write("Output directory:\n")
         f.write(f"   {output_dir}\n\n")
         f.write("Log file:\n")
@@ -389,7 +395,7 @@ def main():
     else:
         cone_nh = float(args.cone_nh)
     
-    bot_h, top_h, rbout, rtout, rbin, rtin, dens_hcone = compute_hollow_cone_properties(
+    bot_h, top_h, rbout, rtout, rbin, rtin, dens_hcone, theta_in, theta_out = compute_hollow_cone_properties(
         torus_cf=covfac,
         r_sub=RSUBLIMATION,
         nh_cone_log=cone_nh
@@ -401,6 +407,9 @@ def main():
     print(f"   BOT/TOP         = {bot_h:.4e} / {top_h:.4e} cm")
     print(f"   RBout/RTout     = {rbout:.4e} / {rtout:.4e} cm")
     print(f"   RBin/RTin       = {rbin:.4e} / {rtin:.4e} cm")
+    print(f"   Cone inner angle (θ_in)  = {theta_in:.2f} deg")
+    print(f"   Cone outer angle (θ_out) = {theta_out:.2f} deg")
+
 
     hcone_vals = {
         "dens": dens_hcone,
@@ -410,6 +419,8 @@ def main():
         "rtout": rtout,
         "rbin": rbin,
         "rtin": rtin,
+        "theta_in": theta_in,
+        "theta_out": theta_out,
     }
     # --- Prepare output directory ---
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
