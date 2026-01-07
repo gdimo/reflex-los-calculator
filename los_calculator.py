@@ -220,6 +220,11 @@ def parse_arguments():
         help="Torus covering factor (0 < CF < 1, e.g. 0.5)"
     )
     parser.add_argument(
+        "--cone-nh",
+        type=float,
+        help="Hollow-cone column density log10(NH) (e.g. 23.0)"
+    )
+    parser.add_argument(
         "--keep",
         type=int,
         choices=[0, 1],
