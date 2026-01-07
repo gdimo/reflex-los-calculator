@@ -4,9 +4,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
-## [0.6] - 2026-01-007
+## [0.6] – 2025-11-28
 ### Added
-- Cone support
+- Full support for hollow-cone (polar wind) geometry, consistent with the RXToPo / RXagn1 grid-generation pipeline
+- New user input for hollow-cone column density `log10(NH_cone)` (interactive and CLI via `--cone-nh`)
+- Automatic computation of hollow-cone geometry parameters from covering factor (CF) and sublimation radius:
+  - Bottom and top heights of the cone
+  - Inner and outer radial boundaries at the bottom and top surfaces
+  - Volumetric cone density derived from column density and geometric path length
+- Hollow-cone geometry passed to RefleX via new substitution variables:
+  - `%HCONEDENS`
+  - `%HCONEBOT`, `%HCONETOP`
+  - `%HCONERBOUT`, `%HCONERTOUT`
+  - `%HCONERBIN`, `%HCONERTIN`
+- Automatic computation and exposure of hollow-cone angular geometry:
+  - Inner cone angle θ_in (degrees)
+  - Outer cone angle θ_out (degrees)
+
+### Changed
+- RefleX execution command updated to include hollow-cone density and geometry parameters
+- Runtime logging now includes hollow-cone angular boundaries (θ_in, θ_out) for full geometry traceability
+- Output summary file (`output.txt`) expanded to include:
+  - Hollow-cone NH
+  - Hollow-cone density
+  - Hollow-cone radial geometry
+  - Hollow-cone inner and outer angles
+- Internal geometry calculations reorganized into dedicated physics helper functions for maintainability and future extension
+
+### Notes
+- Hollow-cone implementation exactly reproduces the geometry and density calculations used in the original RXToPo / RXagn1 grid-generation scripts
+- This version completes the physical geometry model for LOS calculations, including both torus and polar components
+
 
 ## [0.5] – 2025-11-27
 ### Added
