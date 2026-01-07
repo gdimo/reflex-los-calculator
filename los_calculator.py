@@ -5,6 +5,7 @@ RefleX Line-of-Sight NH Utility (Python version)
 - Supports interactive mode (no arguments)
 - Supports argument-based mode for scripting / batches
 - Mirrors functionality of the original Bash script
+- Now includes covering factor -> torus radii (Rin, Rout) via %RTORUSIN, %RTORUSDIST
 """
 
 import os
@@ -13,6 +14,9 @@ import shutil
 import subprocess
 from datetime import datetime
 import argparse
+
+# Sublimation radius constant (from original grid script)
+RSUBLIMATION = 3.1072024e17  # cm
 
 
 # -----------------------------------------------------------
@@ -52,6 +56,7 @@ def print_banner():
     print("Requirements:")
     print("  • RefleX v3 executable named 'reflex3' in the same directory")
     print("  • Parameter files must contain: %COSMIN, %COSMAX, %ANGLE, %TORUSNH")
+    print("  • Torus radii must use: %RTORUSIN, %RTORUSDIST")
     print("  • COLDENS must appear as:  COLDENS 1e%TORUSNH")
     print("")
     print("--------------------------------------------------------------")
@@ -71,6 +76,17 @@ def compute_angle_cosines(obs_angle, delta=0.5):
     cosmin = math.cos(math.radians(theta_min))
     cosmax = math.cos(math.radians(theta_max))
     return theta_min, theta_max, cosmin, cosmax
+
+
+def compute_torus_radii(r_sub, covfac=0.6):
+    """
+    From the original grid script:
+        r_in = (cf / (1 - cf)) * rsub
+        R_distance = rsub + r_in
+    """
+    r_in = (covfac / (1.0 - covfac)) * r_sub
+    r_out = r_sub + r_in
+    return r_in, r_out
 
 
 # -----------------------------------------------------------
@@ -110,9 +126,11 @@ def analyze_histogram(histogram_path):
 # RefleX Execution
 # -----------------------------------------------------------
 
-def run_reflex(model_file, cosmin, cosmax, angle_str, torus_nh, log_file):
+def run_reflex(model_file, cosmin, cosmax, angle_str, torus_nh,
+               r_in, r_out, log_file):
     """
     Execute RefleX with the given parameters and log stdout/stderr.
+    Now also passes %RTORUSIN and %RTORUSDIST.
     """
     cmd = [
         "./reflex3",
@@ -120,6 +138,8 @@ def run_reflex(model_file, cosmin, cosmax, angle_str, torus_nh, log_file):
         f"%COSMAX={cosmax}",
         f"%ANGLE={angle_str}",
         f"%TORUSNH={torus_nh}",
+        f"%RTORUSIN={r_in}",
+        f"%RTORUSDIST={r_out}",
         model_file,
     ]
 
@@ -138,8 +158,9 @@ def run_reflex(model_file, cosmin, cosmax, angle_str, torus_nh, log_file):
 # -----------------------------------------------------------
 
 def write_summary(output_dir, model_name, model_file,
-                  obs_angle, torus_nh,
+                  obs_angle, torus_nh, covfac,
                   theta_min, theta_max, cosmin, cosmax,
+                  r_in, r_out,
                   peak_log, log_file):
     """
     Write a short summary file (output.txt) in the output directory.
@@ -151,7 +172,11 @@ def write_summary(output_dir, model_name, model_file,
         f.write(f"Model used: {model_name}\n")
         f.write(f"Parameter file: {model_file}\n\n")
         f.write(f"Observing angle: {obs_angle} degrees\n")
-        f.write(f"Torus equatorial NH (log10): {torus_nh}\n\n")
+        f.write(f"Torus equatorial NH (log10): {torus_nh}\n")
+        f.write(f"Torus covering factor (CF): {covfac}\n")
+        f.write(f"Sublimation radius (cm): {RSUBLIMATION:.4e}\n")
+        f.write(f"Torus Rin (cm): {r_in:.4e}\n")
+        f.write(f"Torus Rout (cm): {r_out:.4e}\n\n")
         f.write("DIR_Z boundaries:\n")
         f.write(f"   theta_min = {theta_min}°  -> cos = {cosmin}\n")
         f.write(f"   theta_max = {theta_max}°  -> cos = {cosmax}\n\n")
@@ -188,6 +213,11 @@ def parse_arguments():
         "--nh",
         type=float,
         help="Torus equatorial NH (log10, e.g. 24.4)"
+    )
+    parser.add_argument(
+        "--covfac",
+        type=float,
+        help="Torus covering factor (0 < CF < 1, e.g. 0.5)"
     )
     parser.add_argument(
         "--keep",
@@ -276,6 +306,26 @@ def main():
 
     print(f"Using COLDENS = 1e{torus_nh}\n")
 
+    # --- Covering factor CF ---
+    if args.covfac is None:
+        while True:
+            covfac = ask_float("Enter torus covering factor CF (0.1 < CF < 0.9): ")
+            if 0.0 < covfac < 1.0:
+                break
+            print("❌ ERROR: CF must be between 0.1 and 0.9 (exclusive).")
+    else:
+        covfac = float(args.covfac)
+        if not (0.0 < covfac < 1.0):
+            print("❌ ERROR: CF must be between 0.1 and 0.9 (exclusive).")
+            return
+
+    r_in, r_out = compute_torus_radii(RSUBLIMATION, covfac)
+
+    print(f"\nUsing torus geometry from CF:")
+    print(f"   CF = {covfac}")
+    print(f"   Rin  = {r_in:.4e} cm")
+    print(f"   Rout = {r_out:.4e} cm\n")
+
     # --- Prepare output directory ---
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = os.path.join(
@@ -292,8 +342,12 @@ def main():
     print(f"Output directory: {output_dir}")
     print(f"Log file:         {log_file}\n")
 
-    # Only pause if running interactively (no relevant args)
-    if args.model is None or args.angle is None or args.nh is None or args.keep is None:
+    # Pause only if some inputs came from interaction
+    if (args.model is None or
+        args.angle is None or
+        args.nh is None or
+        args.covfac is None or
+        args.keep is None):
         input("Press ENTER to start simulation, or Ctrl+C to cancel.")
         print("")
 
@@ -306,6 +360,8 @@ def main():
         cosmax=cosmax,
         angle_str=angle_str,
         torus_nh=torus_nh,
+        r_in=r_in,
+        r_out=r_out,
         log_file=log_file,
     )
 
@@ -351,10 +407,13 @@ def main():
             model_file=model_file,
             obs_angle=obs_angle,
             torus_nh=torus_nh,
+            covfac=covfac,
             theta_min=theta_min,
             theta_max=theta_max,
             cosmin=cosmin,
             cosmax=cosmax,
+            r_in=r_in,
+            r_out=r_out,
             peak_log=peak_log,
             log_file=log_file,
         )

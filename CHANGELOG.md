@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
+## [0.5] – 2025-11-27
+### Added
+- Support for torus covering factor (CF) as a new input parameter (interactive + CLI via `--covfac`)
+- Automatic computation of torus inner and outer radii:
+  - `%RTORUSIN` = Rin
+  - `%RTORUSDIST` = Rout
+  using the formula from the RXToPo grid builder
+- Sublimation radius constant added (3.1072024e17 cm)
+- Summary file now includes CF, sublimation radius, Rin, and Rout
+- Updated README and USAGE documentation with CF usage instructions
+
+### Changed
+- RefleX command now includes `%RTORUSIN` and `%RTORUSDIST`
+- `.par` file requirements updated to include new geometry variables
+
+### Notes
+- This update brings LOS mode geometry into full consistency with the RXToPo grid-generation pipeline.
+
 ## [0.4] – 2025-11-26
 ### Added
 - Complete Python version of the LOS NH calculator (`los_calculator.py`)
