@@ -168,7 +168,7 @@ def analyze_histogram(histogram_path):
 # -----------------------------------------------------------
 
 def run_reflex(model_file, cosmin, cosmax, angle_str, torus_nh,
-               r_in, r_out, log_file):
+               r_in, r_out, hcone_vals, log_file):
     """
     Execute RefleX with the given parameters and log stdout/stderr.
     Now also passes %RTORUSIN and %RTORUSDIST.
@@ -181,6 +181,13 @@ def run_reflex(model_file, cosmin, cosmax, angle_str, torus_nh,
         f"%TORUSNH={torus_nh}",
         f"%RTORUSIN={r_in}",
         f"%RTORUSDIST={r_out}",
+        f"%HCONEDENS={hcone_vals['dens']}",
+        f"%HCONEBOT={hcone_vals['bot']}",
+        f"%HCONETOP={hcone_vals['top']}",
+        f"%HCONERBOUT={hcone_vals['rbout']}",
+        f"%HCONERTOUT={hcone_vals['rtout']}",
+        f"%HCONERBIN={hcone_vals['rbin']}",
+        f"%HCONERTIN={hcone_vals['rtin']}",
         model_file,
     ]
 
@@ -201,7 +208,7 @@ def run_reflex(model_file, cosmin, cosmax, angle_str, torus_nh,
 def write_summary(output_dir, model_name, model_file,
                   obs_angle, torus_nh, covfac,
                   theta_min, theta_max, cosmin, cosmax,
-                  r_in, r_out,
+                  r_in, r_out, cone_nh, hcone_vals,
                   peak_log, log_file):
     """
     Write a short summary file (output.txt) in the output directory.
@@ -222,6 +229,11 @@ def write_summary(output_dir, model_name, model_file,
         f.write(f"   theta_min = {theta_min}°  -> cos = {cosmin}\n")
         f.write(f"   theta_max = {theta_max}°  -> cos = {cosmax}\n\n")
         f.write(f"LOS NH (log10): {peak_log}\n\n")
+        f.write(f"Hollow cone NH (log10): {cone_nh}\n")
+        f.write(f"Hollow cone density (cm^-3): {hcone_vals['dens']:.6e}\n")
+        f.write(f"HCONE BOT/TOP (cm): {hcone_vals['bot']:.4e} / {hcone_vals['top']:.4e}\n")
+        f.write(f"HCONE RBout/RTout (cm): {hcone_vals['rbout']:.4e} / {hcone_vals['rtout']:.4e}\n")
+        f.write(f"HCONE RBin/RTin (cm): {hcone_vals['rbin']:.4e} / {hcone_vals['rtin']:.4e}\n\n")
         f.write("Output directory:\n")
         f.write(f"   {output_dir}\n\n")
         f.write("Log file:\n")
@@ -372,6 +384,33 @@ def main():
     print(f"   Rin  = {r_in:.4e} cm")
     print(f"   Rout = {r_out:.4e} cm\n")
 
+    if args.cone_nh is None:
+        cone_nh = ask_float("\nEnter hollow-cone NH (log10, e.g. 23.0): ")
+    else:
+        cone_nh = float(args.cone_nh)
+    
+    bot_h, top_h, rbout, rtout, rbin, rtin, dens_hcone = compute_hollow_cone_properties(
+        torus_cf=covfac,
+        r_sub=RSUBLIMATION,
+        nh_cone_log=cone_nh
+    )
+
+    print("\nHollow cone parameters:")
+    print(f"   NH_cone (log10) = {cone_nh}")
+    print(f"   DENSITY         = {dens_hcone:.6e} cm^-3")
+    print(f"   BOT/TOP         = {bot_h:.4e} / {top_h:.4e} cm")
+    print(f"   RBout/RTout     = {rbout:.4e} / {rtout:.4e} cm")
+    print(f"   RBin/RTin       = {rbin:.4e} / {rtin:.4e} cm")
+
+    hcone_vals = {
+        "dens": dens_hcone,
+        "bot": bot_h,
+        "top": top_h,
+        "rbout": rbout,
+        "rtout": rtout,
+        "rbin": rbin,
+        "rtin": rtin,
+    }
     # --- Prepare output directory ---
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = os.path.join(
@@ -393,6 +432,7 @@ def main():
         args.angle is None or
         args.nh is None or
         args.covfac is None or
+        args.cone_nh is None or
         args.keep is None):
         input("Press ENTER to start simulation, or Ctrl+C to cancel.")
         print("")
@@ -408,6 +448,7 @@ def main():
         torus_nh=torus_nh,
         r_in=r_in,
         r_out=r_out,
+        hcone_vals=hcone_vals,
         log_file=log_file,
     )
 
@@ -460,6 +501,8 @@ def main():
             cosmax=cosmax,
             r_in=r_in,
             r_out=r_out,
+            cone_nh=cone_nh,
+            hcone_vals=hcone_vals,
             peak_log=peak_log,
             log_file=log_file,
         )
