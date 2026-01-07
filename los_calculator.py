@@ -17,7 +17,9 @@ import argparse
 
 # Sublimation radius constant (from original grid script)
 RSUBLIMATION = 3.1072024e17  # cm
-
+HCONE_HEIGHT = 1.2342710326e20  # cm (40 pc), from grid script
+HCONE_ANG_WIDTH = 10.0          # degrees, from grid script
+HCONE_THETA_OFFSET = 1.0        # degrees, from grid script
 
 # -----------------------------------------------------------
 # UI + Input Helpers
@@ -89,6 +91,45 @@ def compute_torus_radii(r_sub, covfac=0.6):
     return r_in, r_out
 
 
+def compute_hollow_cone_properties(torus_cf, r_sub, nh_cone_log):
+    """
+    Ported from your grid script cone_properties().
+
+    Returns:
+      bot_h, top_h, RBout, RTout, RBin, RTin, dens_hcone
+
+    Notes:
+      - phi = arcsin(torusCF) [converted to degrees]
+      - theta_out = 90 - (phi + 1 deg)
+      - theta_in  = theta_out - 10 deg
+      - density computed from NH / path length along inner boundary (hypotenuse difference)
+    """
+    # Angle handling
+    phi_deg = math.degrees(math.asin(torus_cf))
+    theta_out = 90.0 - (phi_deg + HCONE_THETA_OFFSET)
+    theta_in = theta_out - HCONE_ANG_WIDTH
+
+    top_h = HCONE_HEIGHT
+    bot_h = r_sub
+
+    # Inner boundaries
+    rbin = bot_h * math.tan(math.radians(theta_in))
+    rtin = top_h * math.tan(math.radians(theta_in))
+
+    # Outer boundaries
+    rbout = bot_h * math.tan(math.radians(theta_out))
+    rtout = top_h * math.tan(math.radians(theta_out))
+
+    # Density: NH / (inner_hyp - short_hyp)
+    inner_hyp = top_h / math.cos(math.radians(theta_in))
+    short_hyp = bot_h / math.cos(math.radians(theta_in))
+    real_hyp = inner_hyp - short_hyp
+
+    nh_linear = 10 ** nh_cone_log  # cm^-2
+    dens_hcone = nh_linear / real_hyp  # cm^-3
+
+    return bot_h, top_h, rbout, rtout, rbin, rtin, dens_hcone, theta_in, theta_out
+
 # -----------------------------------------------------------
 # Histogram Analysis
 # -----------------------------------------------------------
@@ -127,7 +168,7 @@ def analyze_histogram(histogram_path):
 # -----------------------------------------------------------
 
 def run_reflex(model_file, cosmin, cosmax, angle_str, torus_nh,
-               r_in, r_out, log_file):
+               r_in, r_out, hcone_vals, log_file):
     """
     Execute RefleX with the given parameters and log stdout/stderr.
     Now also passes %RTORUSIN and %RTORUSDIST.
@@ -140,6 +181,13 @@ def run_reflex(model_file, cosmin, cosmax, angle_str, torus_nh,
         f"%TORUSNH={torus_nh}",
         f"%RTORUSIN={r_in}",
         f"%RTORUSDIST={r_out}",
+        f"%HCONEDENS={hcone_vals['dens']}",
+        f"%HCONEBOT={hcone_vals['bot']}",
+        f"%HCONETOP={hcone_vals['top']}",
+        f"%HCONERBOUT={hcone_vals['rbout']}",
+        f"%HCONERTOUT={hcone_vals['rtout']}",
+        f"%HCONERBIN={hcone_vals['rbin']}",
+        f"%HCONERTIN={hcone_vals['rtin']}",
         model_file,
     ]
 
@@ -147,6 +195,10 @@ def run_reflex(model_file, cosmin, cosmax, angle_str, torus_nh,
         log.write("=== RefleX run started ===\n")
         log.write("Command:\n")
         log.write(" ".join(cmd) + "\n\n")
+        log.write("\nHollow cone angular geometry:\n")
+        log.write(f"   theta_in  = {hcone_vals['theta_in']:.4f} deg\n")
+        log.write(f"   theta_out = {hcone_vals['theta_out']:.4f} deg\n\n")
+
 
         subprocess.run(cmd, stdout=log, stderr=log, check=False)
 
@@ -160,7 +212,7 @@ def run_reflex(model_file, cosmin, cosmax, angle_str, torus_nh,
 def write_summary(output_dir, model_name, model_file,
                   obs_angle, torus_nh, covfac,
                   theta_min, theta_max, cosmin, cosmax,
-                  r_in, r_out,
+                  r_in, r_out, cone_nh, hcone_vals,
                   peak_log, log_file):
     """
     Write a short summary file (output.txt) in the output directory.
@@ -181,6 +233,13 @@ def write_summary(output_dir, model_name, model_file,
         f.write(f"   theta_min = {theta_min}°  -> cos = {cosmin}\n")
         f.write(f"   theta_max = {theta_max}°  -> cos = {cosmax}\n\n")
         f.write(f"LOS NH (log10): {peak_log}\n\n")
+        f.write(f"Hollow cone NH (log10): {cone_nh}\n")
+        f.write(f"Hollow cone density (cm^-3): {hcone_vals['dens']:.6e}\n")
+        f.write(f"HCONE BOT/TOP (cm): {hcone_vals['bot']:.4e} / {hcone_vals['top']:.4e}\n")
+        f.write(f"HCONE RBout/RTout (cm): {hcone_vals['rbout']:.4e} / {hcone_vals['rtout']:.4e}\n")
+        f.write(f"HCONE RBin/RTin (cm): {hcone_vals['rbin']:.4e} / {hcone_vals['rtin']:.4e}\n\n")
+        f.write(f"Hollow cone inner angle (deg): {hcone_vals['theta_in']:.2f}\n")
+        f.write(f"Hollow cone outer angle (deg): {hcone_vals['theta_out']:.2f}\n")
         f.write("Output directory:\n")
         f.write(f"   {output_dir}\n\n")
         f.write("Log file:\n")
@@ -218,6 +277,11 @@ def parse_arguments():
         "--covfac",
         type=float,
         help="Torus covering factor (0 < CF < 1, e.g. 0.5)"
+    )
+    parser.add_argument(
+        "--cone-nh",
+        type=float,
+        help="Hollow-cone column density log10(NH) (e.g. 23.0)"
     )
     parser.add_argument(
         "--keep",
@@ -326,6 +390,38 @@ def main():
     print(f"   Rin  = {r_in:.4e} cm")
     print(f"   Rout = {r_out:.4e} cm\n")
 
+    if args.cone_nh is None:
+        cone_nh = ask_float("\nEnter hollow-cone NH (log10, e.g. 23.0): ")
+    else:
+        cone_nh = float(args.cone_nh)
+    
+    bot_h, top_h, rbout, rtout, rbin, rtin, dens_hcone, theta_in, theta_out = compute_hollow_cone_properties(
+        torus_cf=covfac,
+        r_sub=RSUBLIMATION,
+        nh_cone_log=cone_nh
+    )
+
+    print("\nHollow cone parameters:")
+    print(f"   NH_cone (log10) = {cone_nh}")
+    print(f"   DENSITY         = {dens_hcone:.6e} cm^-3")
+    print(f"   BOT/TOP         = {bot_h:.4e} / {top_h:.4e} cm")
+    print(f"   RBout/RTout     = {rbout:.4e} / {rtout:.4e} cm")
+    print(f"   RBin/RTin       = {rbin:.4e} / {rtin:.4e} cm")
+    print(f"   Cone inner angle (θ_in)  = {theta_in:.2f} deg")
+    print(f"   Cone outer angle (θ_out) = {theta_out:.2f} deg")
+
+
+    hcone_vals = {
+        "dens": dens_hcone,
+        "bot": bot_h,
+        "top": top_h,
+        "rbout": rbout,
+        "rtout": rtout,
+        "rbin": rbin,
+        "rtin": rtin,
+        "theta_in": theta_in,
+        "theta_out": theta_out,
+    }
     # --- Prepare output directory ---
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = os.path.join(
@@ -347,6 +443,7 @@ def main():
         args.angle is None or
         args.nh is None or
         args.covfac is None or
+        args.cone_nh is None or
         args.keep is None):
         input("Press ENTER to start simulation, or Ctrl+C to cancel.")
         print("")
@@ -362,6 +459,7 @@ def main():
         torus_nh=torus_nh,
         r_in=r_in,
         r_out=r_out,
+        hcone_vals=hcone_vals,
         log_file=log_file,
     )
 
@@ -414,6 +512,8 @@ def main():
             cosmax=cosmax,
             r_in=r_in,
             r_out=r_out,
+            cone_nh=cone_nh,
+            hcone_vals=hcone_vals,
             peak_log=peak_log,
             log_file=log_file,
         )
