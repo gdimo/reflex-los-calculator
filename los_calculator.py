@@ -17,7 +17,9 @@ import argparse
 
 # Sublimation radius constant (from original grid script)
 RSUBLIMATION = 3.1072024e17  # cm
-
+HCONE_HEIGHT = 1.2342710326e20  # cm (40 pc), from grid script
+HCONE_ANG_WIDTH = 10.0          # degrees, from grid script
+HCONE_THETA_OFFSET = 1.0        # degrees, from grid script
 
 # -----------------------------------------------------------
 # UI + Input Helpers
@@ -88,6 +90,45 @@ def compute_torus_radii(r_sub, covfac=0.6):
     r_out = r_sub + r_in
     return r_in, r_out
 
+
+def compute_hollow_cone_properties(torus_cf, r_sub, nh_cone_log):
+    """
+    Ported from your grid script cone_properties().
+
+    Returns:
+      bot_h, top_h, RBout, RTout, RBin, RTin, dens_hcone
+
+    Notes:
+      - phi = arcsin(torusCF) [converted to degrees]
+      - theta_out = 90 - (phi + 1 deg)
+      - theta_in  = theta_out - 10 deg
+      - density computed from NH / path length along inner boundary (hypotenuse difference)
+    """
+    # Angle handling
+    phi_deg = math.degrees(math.asin(torus_cf))
+    theta_out = 90.0 - (phi_deg + HCONE_THETA_OFFSET)
+    theta_in = theta_out - HCONE_ANG_WIDTH
+
+    top_h = HCONE_HEIGHT
+    bot_h = r_sub
+
+    # Inner boundaries
+    rbin = bot_h * math.tan(math.radians(theta_in))
+    rtin = top_h * math.tan(math.radians(theta_in))
+
+    # Outer boundaries
+    rbout = bot_h * math.tan(math.radians(theta_out))
+    rtout = top_h * math.tan(math.radians(theta_out))
+
+    # Density: NH / (inner_hyp - short_hyp)
+    inner_hyp = top_h / math.cos(math.radians(theta_in))
+    short_hyp = bot_h / math.cos(math.radians(theta_in))
+    real_hyp = inner_hyp - short_hyp
+
+    nh_linear = 10 ** nh_cone_log  # cm^-2
+    dens_hcone = nh_linear / real_hyp  # cm^-3
+
+    return bot_h, top_h, rbout, rtout, rbin, rtin, dens_hcone
 
 # -----------------------------------------------------------
 # Histogram Analysis
