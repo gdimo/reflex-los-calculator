@@ -4,7 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
-## [0.6] – 2025-11-28
+## [0.7] - 2025-01-08
+### Added
+- Now the los script supports rxagn1 calculations
+
+## [0.6] – 2025-01-07
 ### Added
 - Full support for hollow-cone (polar wind) geometry, consistent with the RXToPo / RXagn1 grid-generation pipeline
 - New user input for hollow-cone column density `log10(NH_cone)` (interactive and CLI via `--cone-nh`)
