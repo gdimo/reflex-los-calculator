@@ -44,16 +44,12 @@ The torus geometry is controlled by two user parameters:
 - **Covering factor (CF)**
 
 From the covering factor and a fixed sublimation radius
-\( R_{\mathrm{sub}} = 3.1072 \times 10^{17} \,\mathrm{cm} \),
+$( R_{\mathrm{sub}} = 3.1072 \times 10^{17} \,\mathrm{cm} )$,
 the torus radii are computed as:
 
-\[
-R_{\mathrm{in}} = \frac{\mathrm{CF}}{1 - \mathrm{CF}} R_{\mathrm{sub}}
-\]
+$R_{\mathrm{in}} = \frac{\mathrm{CF}}{1 - \mathrm{CF}} R_{\mathrm{sub}}$
 
-\[
-R_{\mathrm{out}} = R_{\mathrm{sub}} + R_{\mathrm{in}}
-\]
+$R_{\mathrm{out}} = R_{\mathrm{sub}} + R_{\mathrm{in}}$
 
 These values are automatically passed to RefleX via:
 
@@ -76,17 +72,11 @@ The hollow cone is defined by:
 
 The cone geometry is derived from the torus covering factor CF:
 
-\[
-\phi = \arcsin(\mathrm{CF})
-\]
+$\phi = \arcsin(\mathrm{CF})$
 
-\[
-\theta_{\mathrm{out}} = 90^\circ - (\phi + 1^\circ)
-\]
+$\theta_{\mathrm{out}} = 90^\circ - (\phi + 1^\circ)$
 
-\[
-\theta_{\mathrm{in}} = \theta_{\mathrm{out}} - 10^\circ
-\]
+$\theta_{\mathrm{in}} = \theta_{\mathrm{out}} - 10^\circ $
 
 From these angles, the inner and outer radial boundaries of the cone
 are computed at both the bottom (sublimation radius) and the top
