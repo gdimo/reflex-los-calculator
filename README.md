@@ -5,6 +5,78 @@ This repository contains a command-line utility for running
 **RefleX v3** simulation code (Paltani & Ricci 2017).
 
 ---
+## Requirements
+
+- **RefleX v3 executable** (must be named `reflex3`)
+- Shell environment (macOS or Linux)
+- Python 3 (for computing log10 values)
+Parameter files with RefleX variable placeholders:
+  - %COSMIN
+  - %COSMAX
+  - %ANGLE
+  - %TORUSNH
+  - %RTORUSIN
+  - %RTORUSDIST
+  - %HCONEDENS
+  - %HCONEBOT
+  - %HCONETOP
+  - %HCONERBIN
+  - %HCONERTIN
+  - %HCONERBOUT
+  - %HCONERTOUT
+
+
+## Output
+
+- `NHdegXX.txt` — LOS NH histogram
+- `output.txt` — simulation summary
+- `run_*.log` — RefleX execution log
+
+---
+
+
+## How to
+
+A short description of how to properly use the script. There are three modes; _interactive_, _automatic_ and _hybrid_.
+
+### Interactive mode
+
+- Simply execute  
+`python los_calculator.py`  
+and follow the instructions in the screen
+- You will be prompted to select the model, and its parameters as well as whether you want to keep the output in separate files.
+- You should see:  
+```
+Which model do you want to use?
+  [1] RXToPo
+  [2] RXagn1
+Enter 1 or 2:
+Enter observing angle:
+Enter torus NH (log10):
+.
+.
+.
+Do you want to keep the output files? (1=yes, 0=no)
+```
+
+### Automatic mode
+- Execute the script with command-line arguments (an example):
+```
+python3 los_calculator.py \
+    --model rxtopo \
+    --angle 79 \
+    --nh 24.4 \
+    --covfac 0.5 \
+    --cone-nh 23.0 \
+    --keep 1
+```
+- This way the procedure can be scripted for multiple sources.
+
+### Hybrid mode
+
+- It is a combination of the two modes. You can automate some of the parameters and you will be promted to supply the rest.
+- For example:
+`python3 los_calculator.py --model rxagn1 --angle 75`  
 
 ## Purpose
 
@@ -21,7 +93,7 @@ to the RefleX simulation framework, allowing astronomers to:
 - Automatically generate a summary report
 
 This script hides the internal complexity of RefleX and provides a 
-clean interface suited for scientific analysis pipelines.
+clean interface for quick calculations.
 
 ---
 ## Geometry Model
@@ -86,76 +158,3 @@ The cone density is derived self-consistently from the cone column density
 and the physical path length through the cone.
 
 ---
-## Requirements
-
-- **RefleX v3 executable** (must be named `reflex3`)
-- Shell environment (macOS or Linux)
-- Python 3 (for computing log10 values)
-Parameter files with RefleX variable placeholders:
-  - %COSMIN
-  - %COSMAX
-  - %ANGLE
-  - %TORUSNH
-  - %RTORUSIN
-  - %RTORUSDIST
-  - %HCONEDENS
-  - %HCONEBOT
-  - %HCONETOP
-  - %HCONERBIN
-  - %HCONERTIN
-  - %HCONERBOUT
-  - %HCONERTOUT
-
-Example expected line in your `.par` file:
-
-## Output
-
-- `NHdegXX.txt` — LOS NH histogram
-- `output.txt` — simulation summary
-- `run_*.log` — RefleX execution log
-
----
-
-
-## How to
-
-A short description of how to properly use the script. There are three modes; _interactive_, _automatic_ and _hybrid_.
-
-### Interactive mode
-
-- Simply execute  
-`python los_calculator.py`  
-and follow the instructions in the screen
-- You will be prompted to select the model, and its parameters as well as whether you want to keep the output in separate files.
-- You should see:  
-```
-Which model do you want to use?
-  [1] RXToPo
-  [2] RXagn1
-Enter 1 or 2:
-Enter observing angle:
-Enter torus NH (log10):
-.
-.
-.
-Do you want to keep the output files? (1=yes, 0=no)
-```
-
-### Automatic mode
-- Execute the script with command-line arguments (an example):
-```
-python3 los_calculator.py \
-    --model rxtopo \
-    --angle 79 \
-    --nh 24.4 \
-    --covfac 0.5 \
-    --cone-nh 23.0 \
-    --keep 1
-```
-- This way the procedure can be scripted for multiple sources.
-
-### Hybrid mode
-
-- It is a combination of the two modes. You can automate some of the parameters and you will be promted to supply the rest.
-- For example:
-`python3 los_calculator.py --model rxagn1 --angle 75`  
