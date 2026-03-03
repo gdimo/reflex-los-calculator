@@ -3,6 +3,7 @@
 This repository contains a command-line utility for running 
 **LOS (Line-of-Sight) column density calculations** using the 
 **RefleX v3** simulation code (Paltani & Ricci 2017).
+This tool is useful to accompany the models RXToPo and RXagn1 Dimopoulos, Ricci, Paltani, ApJ 992, 64 (2025)
 
 ---
 ## Requirements
